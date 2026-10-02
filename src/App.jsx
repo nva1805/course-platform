@@ -305,7 +305,7 @@ export default function App() {
           ) : courseUnavailable ? (
             <div className="empty-state"><h2>Không tải được dữ liệu khóa học</h2><p>Kiểm tra Drive API rồi tải lại trang.</p></div>
           ) : activeLesson ? (
-            <div className="lesson-workspace">
+            <div className={`lesson-workspace ${activeLesson.category === 'video' ? 'lesson-workspace--video' : ''}`}>
               <div className="player-container"><iframe src={`https://drive.google.com/file/d/${activeLesson.id}/preview`} className={activeLesson.category === 'pdf' ? 'pdf-frame' : 'video-frame'} allow="autoplay; fullscreen" allowFullScreen title={activeLesson.name} /></div>
               {activeLesson.category === 'video' && <div className="learning-grid learning-grid--transcript"><TranscriptSection key={`transcript-${activeLesson.id}`} lesson={activeLesson} bundled={syncedTranscripts[activeLesson.id]?.text || ''} /></div>}
             </div>

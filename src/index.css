@@ -437,6 +437,11 @@ body {
   gap: 24px;
 }
 
+.lesson-workspace--video {
+  /* Keep a 16:9 Drive player fully visible below the 64px topbar. */
+  max-width: min(1200px, calc(177.7778vh - 184.8889px));
+}
+
 .learning-grid {
   display: grid;
   grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
@@ -694,6 +699,7 @@ body {
   background: #fff; /* For PDF */
 }
 .video-frame {
+  display: block;
   background: #000;
   aspect-ratio: 16 / 9;
 }

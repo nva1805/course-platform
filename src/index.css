@@ -170,6 +170,7 @@ body {
 }
 
 .sidebar-reveal { margin-right: 14px; }
+.sidebar-mobile-close { display: none; }
 
 .course-total {
   color: var(--text-secondary);
@@ -335,6 +336,7 @@ body {
 /* Main Content */
 .main-content {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -370,6 +372,9 @@ body {
 .content-breadcrumb {
   font-size: 0.75rem;
   color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .content-title {
@@ -417,6 +422,7 @@ body {
 
 .player-container {
   width: 100%;
+  min-width: 0;
   max-width: 1200px;
   min-height: 100%;
   background: var(--bg-secondary);
@@ -431,6 +437,7 @@ body {
 
 .lesson-workspace {
   width: 100%;
+  min-width: 0;
   max-width: 1200px;
   display: flex;
   flex-direction: column;
@@ -695,6 +702,7 @@ body {
 
 .video-frame, .pdf-frame {
   width: 100%;
+  min-width: 0;
   border: none;
   background: #fff; /* For PDF */
 }
@@ -768,10 +776,20 @@ body {
     transform: translateX(0);
   }
   .menu-toggle {
-    display: block;
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 40px;
+    height: 40px;
+    margin-right: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--bg-secondary);
+    font-size: 1.15rem;
   }
   .sidebar-collapse,
   .sidebar-reveal { display: none; }
+  .sidebar-mobile-close { display: grid; }
   .player-wrapper {
     padding: 0;
   }
@@ -782,8 +800,11 @@ body {
   .learning-grid { grid-template-columns: 1fr; padding: 0 12px 20px; }
   .learning-card { padding: 18px; }
   .card-heading { align-items: flex-start; }
-  .topbar { padding: 0 12px; }
-  .theme-toggle { margin-left: 10px; }
+  .topbar { gap: 8px; padding: 0 12px; }
+  .content-breadcrumb { font-size: 0.66rem; }
+  .content-title { font-size: 0.96rem; }
+  .theme-toggle,
+  .exercise-toggle { margin-left: 0; }
   .exercise-toggle,
   .theme-toggle { width: 40px; height: 40px; }
   .inline-form { flex-wrap: wrap; }
@@ -791,6 +812,19 @@ body {
   .exercise-panel { width: 100%; }
   .exercise-panel-content { padding: 16px 12px 24px; }
   .exercise-panel-header { padding: 12px 14px; }
+  .question-card { padding: 14px 12px; }
+  .answer-option { padding: 9px 8px; text-align: left; }
+}
+
+@media (max-width: 420px) {
+  .exercise-panel-header { gap: 10px; }
+  .exercise-panel-header strong { max-width: 220px; font-size: 0.9rem; }
+  .exercise-panel-actions { gap: 6px; }
+  .panel-theme-toggle,
+  .exercise-panel-close { width: 38px; height: 38px; }
+  .quiz-card .card-heading { align-items: flex-start; gap: 10px; }
+  .quiz-card .card-heading h3 { font-size: 1.05rem; }
+  .quiz-card .card-heading .text-button { padding: 6px 8px; font-size: 0.74rem; }
 }
 
 @media (max-width: 1100px) and (min-width: 769px) {

@@ -242,6 +242,9 @@ export default function App() {
             <button className="sidebar-toggle sidebar-collapse" onClick={() => setSidebarCollapsed(true)} aria-label="Ẩn danh sách bài học" title="Ẩn danh sách bài học">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
             </button>
+            <button className="sidebar-toggle sidebar-mobile-close" onClick={() => setMobileMenuOpen(false)} aria-label="Đóng danh sách bài học" title="Đóng danh sách bài học">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+            </button>
           </div>
           <div className="course-total" aria-live="polite">
             {coursePending ? 'Đang tải danh sách bài học…' : courseUnavailable ? 'Chưa có dữ liệu bài học' : `Tổng ${totalLessons} bài học`}

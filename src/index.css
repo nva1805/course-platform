@@ -787,6 +787,9 @@ body {
   background: #000;
   aspect-ratio: 16 / 9;
 }
+.player-mobile-fullscreen {
+  display: none;
+}
 .player-fullscreen-exit {
   display: none;
   position: absolute;
@@ -933,6 +936,36 @@ body {
     height: 100%;
     aspect-ratio: 16 / 9;
     transform: none;
+  }
+  .video-fullscreen-toggle { display: none; }
+  .player-mobile-fullscreen {
+    display: grid;
+    place-items: center;
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 4;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 11px;
+    background: rgba(0, 0, 0, 0.72);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .player-mobile-fullscreen svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
   }
   .learning-grid { grid-template-columns: 1fr; padding: 0 12px 20px; }
   .learning-card { padding: 18px; }

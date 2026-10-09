@@ -104,7 +104,34 @@ const buildFallbackExercise = (moduleName, lesson) => {
   };
 };
 
-export const buildExercise = (moduleName = '', lesson = {}, transcript = '') => {
+const buildInVideoGroups = (lesson, entry = {}) => (entry.groups || []).map((group, groupIndex) => ({
+  id: `${lesson.id}-video-group-${groupIndex + 1}`,
+  title: group.title || `Bài tập trong video ${groupIndex + 1}`,
+  instruction: group.instruction || '',
+  startTime: group.startTime || '',
+  answerTime: group.answerTime || '',
+  questions: (group.questions || []).map((item, questionIndex) => question(
+    lesson.id,
+    `video-${groupIndex + 1}-${questionIndex + 1}`,
+    item.prompt,
+    item.rubric,
+    item.placeholder || 'Nhập câu trả lời của bạn…',
+    {
+      type: item.type || 'short-answer',
+      correctAnswer: item.correctAnswer,
+      options: item.options || [],
+      requiredWords: item.requiredWords || [],
+    },
+  )),
+})).filter((group) => group.questions.length);
+
+export const buildExercise = (moduleName = '', lesson = {}, transcript = '', inVideoEntry = {}) => {
   if (lesson.category !== 'video') return null;
-  return buildTranscriptExercise(moduleName, lesson, transcript) || buildFallbackExercise(moduleName, lesson);
+  const review = buildTranscriptExercise(moduleName, lesson, transcript) || buildFallbackExercise(moduleName, lesson);
+  return {
+    ...review,
+    version: inVideoEntry.version || '',
+    reviewQuestions: review.questions,
+    inVideoGroups: buildInVideoGroups(lesson, inVideoEntry),
+  };
 };

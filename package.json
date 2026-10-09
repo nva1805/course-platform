@@ -9,7 +9,10 @@
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "transcripts:sync": "node scripts/sync-drive-transcripts.mjs"
+    "transcripts:sync": "node scripts/sync-drive-transcripts.mjs",
+    "exercises:generate": "node scripts/generate-in-video-exercises.mjs",
+    "exercises:enrich-required-words": "node scripts/enrich-required-words.mjs",
+    "summaries:generate": "node scripts/generate-lesson-summaries.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",

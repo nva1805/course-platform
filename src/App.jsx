@@ -1,9 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { buildExercise } from './exercises';
 
 const WEB_APP_URL = import.meta.env.VITE_DRIVE_WEB_APP_URL || '';
-const DEFAULT_GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY?.trim() || '';
-const GEMINI_MODEL = 'gemini-3.5-flash-lite';
 const stripExtension = (name = '') => name.replace(/\.[^/.]+$/, '');
 
 const getAllFiles = (folder) => {
@@ -18,21 +16,27 @@ const FileIcon = ({ type }) => (
   </span>
 );
 
-const TranscriptSection = ({ lesson, bundled = '' }) => {
+const LessonSummarySection = ({ lesson, summary }) => {
   return (
-    <section className="learning-card transcript-card">
+    <section className="learning-card summary-card">
       <div className="card-heading">
-        <div><span className="eyebrow">Nội dung bài giảng</span><h3>Transcript</h3></div>
+        <div><span className="eyebrow">Nội dung bài giảng</span><h3>Tóm tắt bài học</h3></div>
         <div className="card-actions">
           <a href={lesson.parentFolderId ? `https://drive.google.com/drive/u/0/folders/${lesson.parentFolderId}` : `https://drive.google.com/file/d/${lesson.id}/view`} target="_blank" rel="noreferrer">Mở thư mục Drive</a>
         </div>
       </div>
-      {bundled ? (
-        <div className="transcript-content">{bundled}</div>
+      {summary?.overview ? (
+        <div className="lesson-summary">
+          <p className="summary-overview">{summary.overview}</p>
+          {summary.keyPoints?.length > 0 && (
+            <div className="summary-section"><h4>Ý chính cần nhớ</h4><ul>{summary.keyPoints.map((point, index) => <li key={`${lesson.id}-summary-${index}`}>{point}</li>)}</ul></div>
+          )}
+          {summary.practiceFocus && <div className="summary-practice"><strong>Nên luyện tập</strong><p>{summary.practiceFocus}</p></div>}
+        </div>
       ) : (
         <div className="empty-panel">
-          <strong>Video này chưa có transcript đã đồng bộ.</strong>
-          <p>Google Drive chưa cung cấp transcript đã xử lý cho video này.</p>
+          <strong>Video này chưa có bản tóm tắt.</strong>
+          <p>Nội dung tóm tắt sẽ được bổ sung sau khi transcript được xử lý.</p>
         </div>
       )}
     </section>
@@ -48,21 +52,20 @@ const QUESTION_TYPE_LABELS = {
   application: 'Vận dụng',
 };
 
-const QuizSection = ({ lesson, moduleName, bundledTranscript = '' }) => {
+const QuizSection = ({ lesson, moduleName, bundledTranscript = '', inVideoExercises = {} }) => {
   const exercise = useMemo(
-    () => buildExercise(moduleName, lesson, bundledTranscript),
-    [moduleName, lesson, bundledTranscript],
+    () => buildExercise(moduleName, lesson, bundledTranscript, inVideoExercises),
+    [moduleName, lesson, bundledTranscript, inVideoExercises],
   );
-  const answerStorageKey = `courseAnswers:${lesson.id}`;
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
-  const [showApiKey, setShowApiKey] = useState(() => !localStorage.getItem('gemini_api_key') && !DEFAULT_GEMINI_API_KEY);
-  const effectiveApiKey = apiKey.trim() || DEFAULT_GEMINI_API_KEY;
+  const [activeQuestionSet, setActiveQuestionSet] = useState(() => inVideoExercises.groups?.length ? 'in-video' : 'review');
+  const answerStorageKey = `courseAnswers:${lesson.id}${exercise.version ? `:${exercise.version}` : ''}`;
   const [answers, setAnswers] = useState(() => {
     try { return JSON.parse(localStorage.getItem(answerStorageKey) || '{}'); } catch { return {}; }
   });
   const [feedback, setFeedback] = useState({});
-  const [grading, setGrading] = useState(false);
-  const [error, setError] = useState('');
+  const [gradingGroupId, setGradingGroupId] = useState('');
+  const [groupErrors, setGroupErrors] = useState({});
+  const [openGroups, setOpenGroups] = useState({});
 
   if (!exercise) return null;
 
@@ -72,110 +75,130 @@ const QuizSection = ({ lesson, moduleName, bundledTranscript = '' }) => {
     localStorage.setItem(answerStorageKey, JSON.stringify(next));
   };
 
-  const saveApiKey = () => {
-    const normalized = apiKey.trim();
-    if (normalized) localStorage.setItem('gemini_api_key', normalized);
-    else localStorage.removeItem('gemini_api_key');
-    setApiKey(normalized);
-    setShowApiKey(!normalized && !DEFAULT_GEMINI_API_KEY);
-  };
+  const visibleGroups = activeQuestionSet === 'in-video'
+    ? exercise.inVideoGroups
+    : [{ id: 'review', title: 'Ôn tập sau video', instruction: 'Củng cố kiến thức và vận dụng nội dung chính của bài học.', questions: exercise.reviewQuestions }];
 
-  const useDefaultApiKey = () => {
-    localStorage.removeItem('gemini_api_key');
-    setApiKey('');
-    setShowApiKey(false);
-  };
-
-  const gradeAnswers = async () => {
-    const unanswered = exercise.questions.filter((item) => !answers[item.id]?.trim());
-    if (unanswered.length) return setError(`Bạn còn ${unanswered.length} câu chưa trả lời.`);
-    if (!effectiveApiKey) {
-      setShowApiKey(true);
-      return setError('Hãy lưu Gemini API key trước khi chấm bài.');
+  const gradeGroup = async (group) => {
+    const unanswered = group.questions.filter((item) => !answers[item.id]?.trim());
+    if (unanswered.length) {
+      setGroupErrors((current) => ({ ...current, [group.id]: `Bạn còn ${unanswered.length} câu chưa trả lời trong phần này.` }));
+      return;
     }
-    setGrading(true);
-    setError('');
+    setGradingGroupId(group.id);
+    setGroupErrors((current) => ({ ...current, [group.id]: '' }));
     try {
-      const transcript = bundledTranscript;
-      const payload = exercise.questions.map((item) => ({ id: item.id, type: item.type, question: item.text, options: item.options, correctAnswer: item.correctAnswer, rubric: item.rubric, learnerAnswer: answers[item.id] }));
-      const prompt = `Bạn là trợ giảng trên một nền tảng học trực tuyến. Chỉ chấm và giải thích câu trả lời; không tạo câu hỏi mới.
-Bài học: ${exercise.title}
-Transcript tham khảo (có thể trống): ${transcript.slice(0, 8000)}
-
-Hãy chấm từng câu theo rubric, trả về JSON thuần dạng:
-{"results":[{"id":"...","score":0,"verdict":"Đạt/Chưa đạt","feedback":"...","explanation":"...","improvedAnswer":"..."}]}
-Điểm score từ 0 đến 10. Giải thích ngắn, cụ thể, bằng tiếng Việt. Dữ liệu cần chấm:
-${JSON.stringify(payload)}`;
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': effectiveApiKey },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.1, responseMimeType: 'application/json' } }),
-      });
-      const data = await response.json();
-      if (!response.ok || data.error) throw new Error(data.error?.message || 'Không thể chấm bài.');
-      const parsed = JSON.parse(data.candidates?.[0]?.content?.parts?.[0]?.text);
-      setFeedback(Object.fromEntries((parsed.results || []).map((item) => [item.id, item])));
+      const payload = group.questions.map((item) => ({ id: item.id, type: item.type, question: item.text, options: item.options, requiredWords: item.requiredWords, correctAnswer: item.correctAnswer, rubric: item.rubric, learnerAnswer: answers[item.id] }));
+      const gradedResults = [];
+      for (let offset = 0; offset < payload.length; offset += 10) {
+        const response = await fetch('/api/grade', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ exerciseTitle: `${exercise.title} — ${group.title}`, transcript: bundledTranscript.slice(0, 8000), questions: payload.slice(offset, offset + 10) }),
+        });
+        const data = await response.json();
+        if (!response.ok || data.error) throw new Error(data.error?.message || 'Không thể chấm bài.');
+        gradedResults.push(...(data.results || []));
+      }
+      setFeedback((current) => ({ ...current, ...Object.fromEntries(gradedResults.map((item) => [item.id, item])) }));
     } catch (gradeError) {
-      setError(gradeError.message || 'Có lỗi khi chấm bài. Vui lòng thử lại.');
-    } finally { setGrading(false); }
+      setGroupErrors((current) => ({ ...current, [group.id]: gradeError.message || 'Có lỗi khi chấm bài. Vui lòng thử lại.' }));
+    } finally { setGradingGroupId(''); }
   };
 
   return (
     <section className="learning-card quiz-card">
       <div className="card-heading">
         <div><span className="eyebrow">Bài tập cố định</span><h3>{exercise.title}</h3></div>
-        <button className="text-button" onClick={() => setShowApiKey((value) => !value)}>{apiKey ? 'Đổi API key' : DEFAULT_GEMINI_API_KEY ? 'API key mặc định' : 'Thêm API key'}</button>
+        <span className="ai-grading-badge">AI chấm &amp; giải thích</span>
       </div>
       <p className="quiz-intro">Câu hỏi không thay đổi khi tải lại trang. AI chỉ được dùng sau khi bạn nộp bài để chấm và giải thích.</p>
-      {showApiKey && (
-        <div className="api-key-panel">
-          <label htmlFor="gemini-api-key">Gemini API key</label>
-          <div className="inline-form">
-            <input id="gemini-api-key" type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder={DEFAULT_GEMINI_API_KEY ? 'Để trống để dùng key mặc định' : 'AIzaSy...'} autoComplete="off" />
-            <button className="secondary-button" onClick={saveApiKey}>Lưu key</button>
-            {apiKey && DEFAULT_GEMINI_API_KEY && <button className="secondary-button" onClick={useDefaultApiKey}>Dùng key mặc định</button>}
-          </div>
-          <small>{apiKey ? 'Key cá nhân được lưu một lần trong trình duyệt và dùng chung cho mọi video.' : DEFAULT_GEMINI_API_KEY ? 'Đang dùng key mặc định từ .env. Bạn có thể nhập key cá nhân để ghi đè.' : 'Key được lưu một lần trong trình duyệt và dùng chung cho mọi video.'}</small>
+      {exercise.inVideoGroups.length > 0 && (
+        <div className="exercise-tabs" role="tablist" aria-label="Loại bài tập">
+          <button className={activeQuestionSet === 'review' ? 'is-active' : ''} onClick={() => setActiveQuestionSet('review')} role="tab" aria-selected={activeQuestionSet === 'review'}>
+            Ôn tập sau video <span>{exercise.reviewQuestions.length}</span>
+          </button>
+          <button className={activeQuestionSet === 'in-video' ? 'is-active' : ''} onClick={() => setActiveQuestionSet('in-video')} role="tab" aria-selected={activeQuestionSet === 'in-video'}>
+            Bài tập trong video <span>{exercise.inVideoGroups.reduce((total, group) => total + group.questions.length, 0)}</span>
+          </button>
         </div>
       )}
-      <div className="question-list">
-        {exercise.questions.map((item, index) => {
-          const result = feedback[item.id];
+      <div className="exercise-group-list">
+        {visibleGroups.map((group, groupIndex) => {
+          const grading = gradingGroupId === group.id;
           return (
-            <article className="question-card" key={item.id}>
-              <div className="question-number">{index + 1}</div>
-              <div className="question-body">
-                <span className="question-type">{QUESTION_TYPE_LABELS[item.type] || 'Bài tập'}</span>
-                <p>{item.text}</p>
-                {item.type === 'multiple-choice' ? (
-                  <div className="answer-options">
-                    {item.options.map((option, optionIndex) => (
-                      <label className={`answer-option ${answers[item.id] === option ? 'is-selected' : ''}`} key={`${item.id}-${optionIndex}`}>
-                        <input type="radio" name={item.id} value={option} checked={answers[item.id] === option} onChange={(event) => updateAnswer(item.id, event.target.value)} />
-                        <span className="option-letter">{String.fromCharCode(65 + optionIndex)}</span>
-                        <span>{option}</span>
-                      </label>
-                    ))}
-                  </div>
-                ) : item.type === 'fill-blank' ? (
-                  <input className="answer-input" value={answers[item.id] || ''} onChange={(event) => updateAnswer(item.id, event.target.value)} placeholder={item.placeholder} />
-                ) : (
-                  <textarea value={answers[item.id] || ''} onChange={(event) => updateAnswer(item.id, event.target.value)} placeholder={item.placeholder} rows={item.type === 'sentence-completion' || item.type === 'short-answer' ? 2 : 4} />
+            <details
+              className="exercise-question-group"
+              key={group.id}
+              open={openGroups[group.id] ?? groupIndex === 0}
+              onToggle={(event) => {
+                const isOpen = event.currentTarget.open;
+                setOpenGroups((current) => current[group.id] === isOpen ? current : { ...current, [group.id]: isOpen });
+              }}
+            >
+              <summary className="exercise-group-summary">
+                <div className="exercise-group-title">
+                  <span className="exercise-time">{activeQuestionSet === 'in-video' && group.startTime ? `~${group.startTime}` : 'Ôn tập'}</span>
+                  <span>{group.title}</span>
+                </div>
+                <span className="exercise-group-count">{group.questions.length} câu</span>
+              </summary>
+              <div className="exercise-group-content">
+                {group.instruction && <p className="exercise-group-instruction">{group.instruction}</p>}
+                {activeQuestionSet === 'in-video' && group.answerTime && (
+                  <p className="exercise-answer-time">Giảng viên bắt đầu chữa từ khoảng <strong>{group.answerTime}</strong>.</p>
                 )}
-                {result && (
-                  <div className={`feedback ${result.score >= 6 ? 'feedback--good' : 'feedback--review'}`}>
-                    <div className="feedback-summary"><strong>{result.verdict}</strong><span>{result.score}/10</span></div>
-                    <p>{result.feedback}</p><p><b>Giải thích:</b> {result.explanation}</p>
-                    {result.improvedAnswer && <p><b>Gợi ý tốt hơn:</b> {result.improvedAnswer}</p>}
-                  </div>
-                )}
+                <div className="question-list">
+                  {group.questions.map((item, index) => {
+                    const result = feedback[item.id];
+                    const isCorrect = result?.isCorrect ?? result?.verdict === 'Đúng';
+                    return (
+                      <article className="question-card" key={item.id}>
+                        <div className="question-number">{index + 1}</div>
+                        <div className="question-body">
+                          <span className="question-type">{QUESTION_TYPE_LABELS[item.type] || 'Bài tập'}</span>
+                          <p>{item.text}</p>
+                          {item.requiredWords?.length > 0 && (
+                            <div className="required-words"><span>Từ bắt buộc</span><strong>{item.requiredWords.join(', ')}</strong></div>
+                          )}
+                          {item.type === 'multiple-choice' ? (
+                            <div className="answer-options">
+                              {item.options.map((option, optionIndex) => (
+                                <label className={`answer-option ${answers[item.id] === option ? 'is-selected' : ''}`} key={`${item.id}-${optionIndex}`}>
+                                  <input type="radio" name={item.id} value={option} checked={answers[item.id] === option} onChange={(event) => updateAnswer(item.id, event.target.value)} />
+                                  <span className="option-letter">{String.fromCharCode(65 + optionIndex)}</span>
+                                  <span>{option}</span>
+                                </label>
+                              ))}
+                            </div>
+                          ) : item.type === 'fill-blank' ? (
+                            <input className="answer-input" value={answers[item.id] || ''} onChange={(event) => updateAnswer(item.id, event.target.value)} placeholder={item.placeholder} />
+                          ) : (
+                            <textarea value={answers[item.id] || ''} onChange={(event) => updateAnswer(item.id, event.target.value)} placeholder={item.placeholder} rows={item.type === 'sentence-completion' || item.type === 'short-answer' ? 2 : 4} />
+                          )}
+                          {result && (
+                            <div className={`feedback ${isCorrect ? 'feedback--good' : 'feedback--review'}`}>
+                              <div className="feedback-summary"><strong>{isCorrect ? 'Đúng' : 'Chưa đúng'}</strong></div>
+                              {result.feedback && <p>{result.feedback}</p>}
+                              {!isCorrect && result.explanation && <p><b>Vì sao chưa đúng:</b> {result.explanation}</p>}
+                              {!isCorrect && result.referenceAnswer && <p><b>Cần sửa theo đáp án:</b> {result.referenceAnswer}</p>}
+                              {!isCorrect && (result.correctedLearnerAnswer || result.improvedAnswer) && <p><b>Nếu giữ cách viết của bạn:</b> {result.correctedLearnerAnswer || result.improvedAnswer}</p>}
+                            </div>
+                          )}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+                {groupErrors[group.id] && <div className="error-message">{groupErrors[group.id]}</div>}
+                <button className="primary-button grade-button" onClick={() => gradeGroup(group)} disabled={Boolean(gradingGroupId)}>
+                  {grading ? 'Đang chấm phần này…' : 'Chấm & giải thích phần này'}
+                </button>
               </div>
-            </article>
+            </details>
           );
         })}
       </div>
-      {error && <div className="error-message">{error}</div>}
-      <button className="primary-button grade-button" onClick={gradeAnswers} disabled={grading}>{grading ? 'Đang chấm và giải thích…' : 'Chấm bài bằng AI'}</button>
     </section>
   );
 };
@@ -183,6 +206,8 @@ ${JSON.stringify(payload)}`;
 export default function App() {
   const [courseData, setCourseData] = useState(null);
   const [syncedTranscripts, setSyncedTranscripts] = useState({});
+  const [syncedInVideoExercises, setSyncedInVideoExercises] = useState({});
+  const [lessonSummaries, setLessonSummaries] = useState({});
   const [transcriptsLoading, setTranscriptsLoading] = useState(true);
   const [loading, setLoading] = useState(Boolean(WEB_APP_URL));
   const [loadError, setLoadError] = useState(() => WEB_APP_URL ? '' : 'Thiếu VITE_DRIVE_WEB_APP_URL trong .env. Không thể tải dữ liệu khóa học.');
@@ -192,15 +217,41 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [exercisePanelOpen, setExercisePanelOpen] = useState(false);
+  const [videoFullscreen, setVideoFullscreen] = useState(false);
+  const [videoPseudoFullscreen, setVideoPseudoFullscreen] = useState(false);
+  const playerContainerRef = useRef(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('courseTheme') || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'));
 
   useEffect(() => {
-    fetch(`${import.meta.env.BASE_URL}transcripts.json`)
-      .then((response) => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.json(); })
-      .then(setSyncedTranscripts)
-      .catch(() => setSyncedTranscripts({}))
+    Promise.all([
+      fetch(`${import.meta.env.BASE_URL}transcripts.json`).then((response) => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.json(); }),
+      fetch(`${import.meta.env.BASE_URL}in-video-exercises.json`).then((response) => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.json(); }),
+      fetch(`${import.meta.env.BASE_URL}lesson-summaries.json`).then((response) => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.json(); }),
+    ])
+      .then(([transcripts, inVideo, summaries]) => { setSyncedTranscripts(transcripts); setSyncedInVideoExercises(inVideo); setLessonSummaries(summaries); })
+      .catch(() => { setSyncedTranscripts({}); setSyncedInVideoExercises({}); setLessonSummaries({}); })
       .finally(() => setTranscriptsLoading(false));
   }, []);
+
+  useEffect(() => {
+    const syncFullscreenState = () => {
+      const isFullscreen = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+      setVideoFullscreen(isFullscreen || videoPseudoFullscreen);
+    };
+    document.addEventListener('fullscreenchange', syncFullscreenState);
+    document.addEventListener('webkitfullscreenchange', syncFullscreenState);
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreenState);
+      document.removeEventListener('webkitfullscreenchange', syncFullscreenState);
+    };
+  }, [videoPseudoFullscreen]);
+
+  useEffect(() => {
+    if (!videoPseudoFullscreen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [videoPseudoFullscreen]);
 
   useEffect(() => {
     if (!WEB_APP_URL) {
@@ -233,8 +284,49 @@ export default function App() {
     localStorage.setItem('courseTheme', next);
   };
 
+  const openExercisePanel = () => {
+    setSidebarCollapsed(true);
+    setMobileMenuOpen(false);
+    setExercisePanelOpen(true);
+  };
+
+  const toggleVideoFullscreen = async () => {
+    const container = playerContainerRef.current;
+    if (!container || !activeLesson) return;
+    const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
+    if (fullscreenElement) {
+      const exitFullscreen = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exitFullscreen) await exitFullscreen.call(document);
+      try { screen.orientation?.unlock?.(); } catch { /* Orientation unlock is optional. */ }
+      return;
+    }
+
+    if (videoPseudoFullscreen) {
+      setVideoPseudoFullscreen(false);
+      setVideoFullscreen(false);
+      try { screen.orientation?.unlock?.(); } catch { /* Orientation unlock is optional. */ }
+      return;
+    }
+
+    const requestFullscreen = container.requestFullscreen || container.webkitRequestFullscreen;
+    if (!requestFullscreen) {
+      setVideoPseudoFullscreen(true);
+      setVideoFullscreen(true);
+      try { await screen.orientation?.lock?.('landscape'); } catch { /* Manual rotation may still be required. */ }
+      return;
+    }
+    try {
+      await requestFullscreen.call(container);
+      try { await screen.orientation?.lock?.('landscape'); } catch { /* Some mobile browsers require manual rotation. */ }
+    } catch {
+      setVideoPseudoFullscreen(true);
+      setVideoFullscreen(true);
+      try { await screen.orientation?.lock?.('landscape'); } catch { /* Manual rotation may still be required. */ }
+    }
+  };
+
   return (
-    <div className="app-container" data-theme={theme} onKeyDown={(event) => { if (event.key === 'Escape') setExercisePanelOpen(false); }}>
+    <div className={`app-container ${exercisePanelOpen ? 'exercise-mode' : ''}`} data-theme={theme} onKeyDown={(event) => { if (event.key === 'Escape') setExercisePanelOpen(false); }}>
       <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileMenuOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-header">
           <div className="sidebar-title-row">
@@ -295,11 +387,16 @@ export default function App() {
             )}
           </button>
           {activeLesson?.category === 'video' && (
-            <button className="exercise-toggle" onClick={() => setExercisePanelOpen(true)} aria-label="Mở bảng bài tập" title="Mở bảng bài tập" aria-haspopup="dialog" aria-expanded={exercisePanelOpen}>
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M9 5h6m-6 4h6m-6 4h4m-7 7h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-3.2a3 3 0 0 0-5.6 0H6a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
-              </svg>
-            </button>
+            <>
+              <button className="video-fullscreen-toggle" onClick={toggleVideoFullscreen} aria-label="Xem video toàn màn hình" title="Xem video toàn màn hình">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M8 21H3v-5m13 5h5v-5" /></svg>
+              </button>
+              <button className="exercise-toggle" onClick={openExercisePanel} aria-label="Mở bảng bài tập" title="Mở bảng bài tập" aria-haspopup="dialog" aria-expanded={exercisePanelOpen}>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M9 5h6m-6 4h6m-6 4h4m-7 7h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-3.2a3 3 0 0 0-5.6 0H6a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+                </svg>
+              </button>
+            </>
           )}
         </header>
         <div className="player-wrapper" onClick={() => setMobileMenuOpen(false)}>
@@ -309,15 +406,18 @@ export default function App() {
             <div className="empty-state"><h2>Không tải được dữ liệu khóa học</h2><p>Kiểm tra Drive API rồi tải lại trang.</p></div>
           ) : activeLesson ? (
             <div className={`lesson-workspace ${activeLesson.category === 'video' ? 'lesson-workspace--video' : ''}`}>
-              <div className="player-container"><iframe src={`https://drive.google.com/file/d/${activeLesson.id}/preview`} className={activeLesson.category === 'pdf' ? 'pdf-frame' : 'video-frame'} allow="autoplay; fullscreen" allowFullScreen title={activeLesson.name} /></div>
-              {activeLesson.category === 'video' && <div className="learning-grid learning-grid--transcript"><TranscriptSection key={`transcript-${activeLesson.id}`} lesson={activeLesson} bundled={syncedTranscripts[activeLesson.id]?.text || ''} /></div>}
+              <div className={`player-container ${videoPseudoFullscreen ? 'is-pseudo-fullscreen' : ''}`} ref={activeLesson.category === 'video' ? playerContainerRef : null}>
+                <iframe src={`https://drive.google.com/file/d/${activeLesson.id}/preview`} className={activeLesson.category === 'pdf' ? 'pdf-frame' : 'video-frame'} allow="autoplay; fullscreen" allowFullScreen title={activeLesson.name} />
+                {activeLesson.category === 'video' && videoFullscreen && <button className="player-fullscreen-exit" onClick={toggleVideoFullscreen} aria-label="Thoát toàn màn hình">×</button>}
+              </div>
+              {activeLesson.category === 'video' && <div className="learning-grid learning-grid--summary"><LessonSummarySection key={`summary-${activeLesson.id}`} lesson={activeLesson} summary={lessonSummaries[activeLesson.id]} /></div>}
             </div>
           ) : <div className="empty-state"><div className="empty-icon">▣</div><h2>Chọn một bài học để bắt đầu</h2></div>}
         </div>
       </main>
       {activeLesson?.category === 'video' && (
-        <div className={`exercise-panel-backdrop ${exercisePanelOpen ? 'is-open' : ''}`} aria-hidden={!exercisePanelOpen} onMouseDown={() => setExercisePanelOpen(false)}>
-          <aside className="exercise-panel" role="dialog" aria-modal="true" aria-label={`Bài tập: ${stripExtension(activeLesson.name)}`} onMouseDown={(event) => event.stopPropagation()}>
+        <div className={`exercise-panel-backdrop ${exercisePanelOpen ? 'is-open' : ''}`} aria-hidden={!exercisePanelOpen}>
+          <aside className="exercise-panel" role="dialog" aria-modal="false" aria-label={`Bài tập: ${stripExtension(activeLesson.name)}`}>
             <div className="exercise-panel-header">
               <div><span className="eyebrow">Làm bài ngay</span><strong>{stripExtension(activeLesson.name)}</strong></div>
               <div className="exercise-panel-actions">
@@ -333,9 +433,9 @@ export default function App() {
             </div>
             <div className="exercise-panel-content">
               {transcriptsLoading ? (
-                <div className="panel-loading"><span className="loader" /><strong>Đang chuẩn bị bài tập…</strong><small>Đang tải transcript và nội dung câu hỏi.</small></div>
+                <div className="panel-loading"><span className="loader" /><strong>Đang chuẩn bị bài tập…</strong><small>Đang tải nội dung bài học và câu hỏi.</small></div>
               ) : (
-                <QuizSection key={`quiz-${activeLesson.id}`} lesson={activeLesson} moduleName={activeModule} bundledTranscript={syncedTranscripts[activeLesson.id]?.text || ''} />
+                <QuizSection key={`quiz-${activeLesson.id}`} lesson={activeLesson} moduleName={activeModule} bundledTranscript={syncedTranscripts[activeLesson.id]?.text || ''} inVideoExercises={syncedInVideoExercises[activeLesson.id] || {}} />
               )}
             </div>
           </aside>

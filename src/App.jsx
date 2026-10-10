@@ -407,12 +407,7 @@ export default function App() {
           ) : activeLesson ? (
             <div className={`lesson-workspace ${activeLesson.category === 'video' ? 'lesson-workspace--video' : ''}`}>
               <div className={`player-container ${videoPseudoFullscreen ? 'is-pseudo-fullscreen' : ''}`} ref={activeLesson.category === 'video' ? playerContainerRef : null}>
-                <iframe src={`https://drive.google.com/file/d/${activeLesson.id}/preview`} className={activeLesson.category === 'pdf' ? 'pdf-frame' : 'video-frame'} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen webkitallowfullscreen="true" title={activeLesson.name} />
-                {activeLesson.category === 'video' && !videoFullscreen && (
-                  <button className="player-mobile-fullscreen" type="button" onClick={toggleVideoFullscreen} aria-label="Phóng to video" title="Phóng to video">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M8 21H3v-5m13 5h5v-5" /></svg>
-                  </button>
-                )}
+                <iframe src={`https://drive.google.com/file/d/${activeLesson.id}/preview`} className={activeLesson.category === 'pdf' ? 'pdf-frame' : 'video-frame'} allow="autoplay; fullscreen" allowFullScreen title={activeLesson.name} />
                 {activeLesson.category === 'video' && videoFullscreen && <button className="player-fullscreen-exit" onClick={toggleVideoFullscreen} aria-label="Thoát toàn màn hình">×</button>}
               </div>
               {activeLesson.category === 'video' && <div className="learning-grid learning-grid--summary"><LessonSummarySection key={`summary-${activeLesson.id}`} lesson={activeLesson} summary={lessonSummaries[activeLesson.id]} /></div>}

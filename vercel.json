@@ -2,6 +2,9 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "regions": ["sin1"],
   "functions": {
+    "api/course.js": {
+      "maxDuration": 30
+    },
     "api/media.js": {
       "maxDuration": 60
     }

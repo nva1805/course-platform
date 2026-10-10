@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { buildExercise } from './exercises';
 
-const WEB_APP_URL = import.meta.env.VITE_DRIVE_WEB_APP_URL || '';
+const COURSE_API_URL = '/api/course';
 const stripExtension = (name = '') => name.replace(/\.[^/.]+$/, '');
 
 const getAllFiles = (folder) => {
@@ -212,7 +212,7 @@ const QuizSection = ({ lesson, moduleName, bundledTranscript = '', inVideoExerci
                             <div className={`feedback ${isCorrect ? 'feedback--good' : 'feedback--review'}`}>
                               <div className="feedback-summary"><strong>{isCorrect ? 'Đúng' : 'Chưa đúng'}</strong></div>
                               {result.feedback && <p>{result.feedback}</p>}
-                              {!isCorrect && result.explanation && <p><b>Vì sao chưa đúng:</b> {result.explanation}</p>}
+                              {result.explanation && <p><b>{isCorrect ? 'Vì sao đúng:' : 'Vì sao chưa đúng:'}</b> {result.explanation}</p>}
                               {!isCorrect && result.referenceAnswer && <p><b>Cần sửa theo đáp án:</b> {result.referenceAnswer}</p>}
                               {!isCorrect && (result.correctedLearnerAnswer || result.improvedAnswer) && <p><b>Nếu giữ cách viết của bạn:</b> {result.correctedLearnerAnswer || result.improvedAnswer}</p>}
                             </div>
@@ -241,8 +241,8 @@ export default function App() {
   const [syncedInVideoExercises, setSyncedInVideoExercises] = useState({});
   const [lessonSummaries, setLessonSummaries] = useState({});
   const [transcriptsLoading, setTranscriptsLoading] = useState(true);
-  const [loading, setLoading] = useState(Boolean(WEB_APP_URL));
-  const [loadError, setLoadError] = useState(() => WEB_APP_URL ? '' : 'Thiếu VITE_DRIVE_WEB_APP_URL trong .env. Không thể tải dữ liệu khóa học.');
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [activeLesson, setActiveLesson] = useState(null);
   const [activeModule, setActiveModule] = useState('');
   const [openModules, setOpenModules] = useState({});
@@ -263,15 +263,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!WEB_APP_URL) {
-      return undefined;
-    }
     const controller = new AbortController();
-    fetch(WEB_APP_URL, { signal: controller.signal })
+    fetch(COURSE_API_URL, { signal: controller.signal })
       .then((response) => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.json(); })
       .then((data) => {
         setCourseData(data);
         if (data.children?.length) setOpenModules({ [data.children[0].id]: true });
+        fetch('/api/media?warm=1').catch(() => {});
       })
       .catch((error) => {
         if (error.name === 'AbortError') return;

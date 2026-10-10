@@ -23,6 +23,18 @@ export default async function handler(request, response) {
     return sendError(response, 405, 'Phương thức không được hỗ trợ.');
   }
   if (!isMediaConfigured()) return sendError(response, 503, 'Máy chủ chưa được cấu hình để phát video.');
+
+  if (request.query?.warm === '1') {
+    try {
+      await getDriveAccessToken();
+      response.setHeader('Cache-Control', 'private, no-store');
+      return response.status(204).end();
+    } catch (error) {
+      console.error('Media warm-up failed', error?.message || 'unknown');
+      return sendError(response, 502, 'Không thể chuẩn bị kết nối Google Drive.');
+    }
+  }
+
   const fileId = String(request.query?.fileId || '');
   if (!FILE_ID_PATTERN.test(fileId)) return sendError(response, 400, 'ID video không hợp lệ.');
 

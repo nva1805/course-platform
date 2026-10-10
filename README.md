@@ -15,13 +15,14 @@ npm run dev
 ```
 
 Copy `.env.example` to `.env` and configure the Drive Web App URL and server-side Gemini API key.
-Use `vercel dev` when testing AI grading locally because `/api/grade` is a Vercel Function.
+Use `vercel dev` for local development because the course cache, video stream and AI grading use Vercel Functions.
 
 ## Native video playback
 
 The app streams private course videos through the Drive API so mobile browsers display one native control layer instead of the embedded Google Drive player. The server-side Drive credentials are required for video playback.
 
 The media function runs in Vercel's Singapore region and requests the original MP4 in bounded byte ranges. Video files remain in Drive and are neither transcoded nor copied to Vercel storage.
+The course tree is cached at Vercel for five minutes and can be served stale while it refreshes in the background. After the tree loads, the frontend warms the Google authorization token so the first video request does less work.
 
 1. Create a Google Cloud service account and enable the Google Drive API in that project.
 2. Share the course's root Drive folder with the service-account email as **Viewer**.

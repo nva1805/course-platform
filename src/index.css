@@ -842,7 +842,7 @@ body {
     min-width: min(350px, 88vw);
     flex-basis: auto;
     transform: translateX(-100%);
-    box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+    box-shadow: none;
   }
   .sidebar.collapsed {
     width: min(350px, 88vw);
@@ -850,6 +850,7 @@ body {
   }
   .sidebar.mobile-open {
     transform: translateX(0);
+    box-shadow: 10px 0 30px rgba(0,0,0,0.5);
   }
   .app-container.exercise-mode .sidebar.mobile-open { z-index: 30; }
   .menu-toggle {
@@ -869,6 +870,10 @@ body {
   .sidebar-mobile-close { display: grid; }
   .player-wrapper {
     padding: 0;
+  }
+  .lesson-workspace {
+    box-sizing: border-box;
+    padding-bottom: calc(48px + env(safe-area-inset-bottom, 0px));
   }
   .player-container {
     border-radius: 0;

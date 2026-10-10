@@ -16,38 +16,6 @@ const FileIcon = ({ type }) => (
   </span>
 );
 
-const isIOSDevice = () => /iPad|iPhone|iPod/.test(navigator.userAgent)
-  || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-const VideoPlayer = ({ lesson }) => {
-  const [directPlaybackFailed, setDirectPlaybackFailed] = useState(false);
-  const useNativePlayer = isIOSDevice() && !directPlaybackFailed;
-
-  if (useNativePlayer) {
-    return (
-      <video
-        className="video-frame native-video-frame"
-        src={`https://drive.google.com/uc?export=download&id=${lesson.id}`}
-        controls
-        playsInline
-        preload="metadata"
-        onError={() => setDirectPlaybackFailed(true)}
-        aria-label={lesson.name}
-      />
-    );
-  }
-
-  return (
-    <iframe
-      src={`https://drive.google.com/file/d/${lesson.id}/preview`}
-      className={`video-frame drive-video-frame ${isIOSDevice() ? 'drive-video-frame--ios-fallback' : ''}`}
-      allow="autoplay; fullscreen"
-      allowFullScreen
-      title={lesson.name}
-    />
-  );
-};
-
 const LessonSummarySection = ({ lesson, summary }) => {
   return (
     <section className="learning-card summary-card">
@@ -376,11 +344,7 @@ export default function App() {
           ) : activeLesson ? (
             <div className={`lesson-workspace ${activeLesson.category === 'video' ? 'lesson-workspace--video' : ''}`}>
               <div className="player-container">
-                {activeLesson.category === 'video' ? (
-                  <VideoPlayer key={activeLesson.id} lesson={activeLesson} />
-                ) : (
-                  <iframe src={`https://drive.google.com/file/d/${activeLesson.id}/preview`} className="pdf-frame" title={activeLesson.name} />
-                )}
+                <iframe src={`https://drive.google.com/file/d/${activeLesson.id}/preview`} className={activeLesson.category === 'pdf' ? 'pdf-frame' : 'video-frame'} allow="autoplay; fullscreen" allowFullScreen title={activeLesson.name} />
               </div>
               {activeLesson.category === 'video' && <div className="learning-grid learning-grid--summary"><LessonSummarySection key={`summary-${activeLesson.id}`} lesson={activeLesson} summary={lessonSummaries[activeLesson.id]} /></div>}
             </div>

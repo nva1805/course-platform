@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { buildExercise } from './exercises';
 
 const WEB_APP_URL = import.meta.env.VITE_DRIVE_WEB_APP_URL || '';
@@ -217,9 +217,6 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [exercisePanelOpen, setExercisePanelOpen] = useState(false);
-  const [videoFullscreen, setVideoFullscreen] = useState(false);
-  const [videoPseudoFullscreen, setVideoPseudoFullscreen] = useState(false);
-  const playerContainerRef = useRef(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('courseTheme') || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'));
 
   useEffect(() => {
@@ -232,26 +229,6 @@ export default function App() {
       .catch(() => { setSyncedTranscripts({}); setSyncedInVideoExercises({}); setLessonSummaries({}); })
       .finally(() => setTranscriptsLoading(false));
   }, []);
-
-  useEffect(() => {
-    const syncFullscreenState = () => {
-      const isFullscreen = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
-      setVideoFullscreen(isFullscreen || videoPseudoFullscreen);
-    };
-    document.addEventListener('fullscreenchange', syncFullscreenState);
-    document.addEventListener('webkitfullscreenchange', syncFullscreenState);
-    return () => {
-      document.removeEventListener('fullscreenchange', syncFullscreenState);
-      document.removeEventListener('webkitfullscreenchange', syncFullscreenState);
-    };
-  }, [videoPseudoFullscreen]);
-
-  useEffect(() => {
-    if (!videoPseudoFullscreen) return undefined;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = previousOverflow; };
-  }, [videoPseudoFullscreen]);
 
   useEffect(() => {
     if (!WEB_APP_URL) {
@@ -288,41 +265,6 @@ export default function App() {
     setSidebarCollapsed(true);
     setMobileMenuOpen(false);
     setExercisePanelOpen(true);
-  };
-
-  const toggleVideoFullscreen = async () => {
-    const container = playerContainerRef.current;
-    if (!container || !activeLesson) return;
-    const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
-    if (fullscreenElement) {
-      const exitFullscreen = document.exitFullscreen || document.webkitExitFullscreen;
-      if (exitFullscreen) await exitFullscreen.call(document);
-      try { screen.orientation?.unlock?.(); } catch { /* Orientation unlock is optional. */ }
-      return;
-    }
-
-    if (videoPseudoFullscreen) {
-      setVideoPseudoFullscreen(false);
-      setVideoFullscreen(false);
-      try { screen.orientation?.unlock?.(); } catch { /* Orientation unlock is optional. */ }
-      return;
-    }
-
-    const requestFullscreen = container.requestFullscreen || container.webkitRequestFullscreen;
-    if (!requestFullscreen) {
-      setVideoPseudoFullscreen(true);
-      setVideoFullscreen(true);
-      try { await screen.orientation?.lock?.('landscape'); } catch { /* Manual rotation may still be required. */ }
-      return;
-    }
-    try {
-      await requestFullscreen.call(container);
-      try { await screen.orientation?.lock?.('landscape'); } catch { /* Some mobile browsers require manual rotation. */ }
-    } catch {
-      setVideoPseudoFullscreen(true);
-      setVideoFullscreen(true);
-      try { await screen.orientation?.lock?.('landscape'); } catch { /* Manual rotation may still be required. */ }
-    }
   };
 
   return (
@@ -387,16 +329,11 @@ export default function App() {
             )}
           </button>
           {activeLesson?.category === 'video' && (
-            <>
-              <button className="video-fullscreen-toggle" onClick={toggleVideoFullscreen} aria-label="Xem video toàn màn hình" title="Xem video toàn màn hình">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M8 21H3v-5m13 5h5v-5" /></svg>
-              </button>
-              <button className="exercise-toggle" onClick={openExercisePanel} aria-label="Mở bảng bài tập" title="Mở bảng bài tập" aria-haspopup="dialog" aria-expanded={exercisePanelOpen}>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M9 5h6m-6 4h6m-6 4h4m-7 7h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-3.2a3 3 0 0 0-5.6 0H6a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
-                </svg>
-              </button>
-            </>
+            <button className="exercise-toggle" onClick={openExercisePanel} aria-label="Mở bảng bài tập" title="Mở bảng bài tập" aria-haspopup="dialog" aria-expanded={exercisePanelOpen}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 5h6m-6 4h6m-6 4h4m-7 7h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-3.2a3 3 0 0 0-5.6 0H6a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+              </svg>
+            </button>
           )}
         </header>
         <div className="player-wrapper" onClick={() => setMobileMenuOpen(false)}>
@@ -406,9 +343,8 @@ export default function App() {
             <div className="empty-state"><h2>Không tải được dữ liệu khóa học</h2><p>Kiểm tra Drive API rồi tải lại trang.</p></div>
           ) : activeLesson ? (
             <div className={`lesson-workspace ${activeLesson.category === 'video' ? 'lesson-workspace--video' : ''}`}>
-              <div className={`player-container ${videoPseudoFullscreen ? 'is-pseudo-fullscreen' : ''}`} ref={activeLesson.category === 'video' ? playerContainerRef : null}>
+              <div className="player-container">
                 <iframe src={`https://drive.google.com/file/d/${activeLesson.id}/preview`} className={activeLesson.category === 'pdf' ? 'pdf-frame' : 'video-frame'} allow="autoplay; fullscreen" allowFullScreen title={activeLesson.name} />
-                {activeLesson.category === 'video' && videoFullscreen && <button className="player-fullscreen-exit" onClick={toggleVideoFullscreen} aria-label="Thoát toàn màn hình">×</button>}
               </div>
               {activeLesson.category === 'video' && <div className="learning-grid learning-grid--summary"><LessonSummarySection key={`summary-${activeLesson.id}`} lesson={activeLesson} summary={lessonSummaries[activeLesson.id]} /></div>}
             </div>

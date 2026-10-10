@@ -391,7 +391,6 @@ body {
 }
 
 .exercise-toggle,
-.video-fullscreen-toggle,
 .theme-toggle {
   display: grid;
   place-items: center;
@@ -409,13 +408,10 @@ body {
 }
 
 .theme-toggle { margin-left: 18px; }
-.video-fullscreen-toggle { margin-left: 10px; }
 .exercise-toggle { margin-left: 10px; }
 .exercise-toggle:hover,
-.video-fullscreen-toggle:hover,
 .theme-toggle:hover { border-color: var(--accent-primary); color: var(--text-primary); background-color: var(--accent-alpha); }
 .exercise-toggle svg,
-.video-fullscreen-toggle svg,
 .theme-toggle svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
 .player-wrapper {
@@ -787,51 +783,6 @@ body {
   background: #000;
   aspect-ratio: 16 / 9;
 }
-.player-fullscreen-exit {
-  display: none;
-  position: absolute;
-  top: max(14px, env(safe-area-inset-top));
-  right: max(14px, env(safe-area-inset-right));
-  z-index: 3;
-  width: 42px;
-  height: 42px;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.62);
-  color: #fff;
-  cursor: pointer;
-  font-size: 1.7rem;
-  line-height: 1;
-}
-.player-container:fullscreen,
-.player-container:-webkit-full-screen,
-.player-container.is-pseudo-fullscreen {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  width: 100vw;
-  height: 100dvh;
-  max-width: none;
-  min-height: 100dvh;
-  border: 0;
-  border-radius: 0;
-  background: #000;
-}
-.player-container:fullscreen .video-frame,
-.player-container:-webkit-full-screen .video-frame,
-.player-container.is-pseudo-fullscreen .video-frame,
-.video-frame:fullscreen,
-.video-frame:-webkit-full-screen {
-  position: absolute !important;
-  inset: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
-  transform: none !important;
-  aspect-ratio: auto !important;
-}
-.player-container:fullscreen .player-fullscreen-exit,
-.player-container:-webkit-full-screen .player-fullscreen-exit,
-.player-container.is-pseudo-fullscreen .player-fullscreen-exit { display: grid; place-items: center; }
 .pdf-frame {
   height: 80vh;
 }
@@ -941,10 +892,8 @@ body {
   .content-breadcrumb { font-size: 0.66rem; }
   .content-title { font-size: 0.96rem; }
   .theme-toggle,
-  .video-fullscreen-toggle,
   .exercise-toggle { margin-left: 0; }
   .exercise-toggle,
-  .video-fullscreen-toggle,
   .theme-toggle { width: 40px; height: 40px; }
   .exercise-panel {
     top: calc(64px + 56.25vw);

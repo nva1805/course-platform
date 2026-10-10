@@ -43,6 +43,38 @@ const LessonSummarySection = ({ lesson, summary }) => {
   );
 };
 
+const VideoPlayer = ({ lesson }) => {
+  const [failedLessonId, setFailedLessonId] = useState('');
+  const [retryVersion, setRetryVersion] = useState(0);
+
+  if (failedLessonId === lesson.id) {
+    return (
+      <div className="video-player-status video-player-error">
+        <strong>Không thể phát video này.</strong>
+        <p>Hãy thử tải lại luồng phát hoặc mở video trực tiếp trong Drive.</p>
+        <div className="video-player-actions">
+          <button className="primary-button" onClick={() => { setFailedLessonId(''); setRetryVersion((value) => value + 1); }}>Thử lại</button>
+          <a href={`https://drive.google.com/file/d/${lesson.id}/view`} target="_blank" rel="noreferrer">Mở bằng Drive</a>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <video
+      key={`${lesson.id}-${retryVersion}`}
+      className="native-video-player"
+      controls
+      playsInline
+      preload="metadata"
+      src={`/api/media?fileId=${encodeURIComponent(lesson.id)}`}
+      onError={() => setFailedLessonId(lesson.id)}
+    >
+      Trình duyệt của bạn không hỗ trợ phát video HTML5.
+    </video>
+  );
+};
+
 const QUESTION_TYPE_LABELS = {
   'multiple-choice': 'Chọn đáp án',
   'fill-blank': 'Điền từ',
@@ -344,7 +376,9 @@ export default function App() {
           ) : activeLesson ? (
             <div className={`lesson-workspace ${activeLesson.category === 'video' ? 'lesson-workspace--video' : ''}`}>
               <div className="player-container">
-                <iframe src={`https://drive.google.com/file/d/${activeLesson.id}/preview`} className={activeLesson.category === 'pdf' ? 'pdf-frame' : 'video-frame'} allow="autoplay; fullscreen" allowFullScreen title={activeLesson.name} />
+                {activeLesson.category === 'video'
+                  ? <VideoPlayer lesson={activeLesson} />
+                  : <iframe src={`https://drive.google.com/file/d/${activeLesson.id}/preview`} className="pdf-frame" title={activeLesson.name} />}
               </div>
               {activeLesson.category === 'video' && <div className="learning-grid learning-grid--summary"><LessonSummarySection key={`summary-${activeLesson.id}`} lesson={activeLesson} summary={lessonSummaries[activeLesson.id]} /></div>}
             </div>

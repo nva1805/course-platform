@@ -783,6 +783,33 @@ body {
   background: #000;
   aspect-ratio: 16 / 9;
 }
+.native-video-player,
+.video-player-status {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+}
+.native-video-player {
+  object-fit: contain;
+}
+.video-player-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+  box-sizing: border-box;
+  padding: 24px;
+  color: #f8fafc;
+  text-align: center;
+}
+.video-player-status p {
+  margin-top: 6px;
+  color: #cbd5e1;
+}
+.video-player-actions { display: flex; align-items: center; justify-content: center; gap: 16px; }
+.video-player-actions a { color: #c7d2fe; font-weight: 700; }
 .pdf-frame {
   height: 80vh;
 }
@@ -879,6 +906,7 @@ body {
     border-radius: 0;
     border: none;
   }
+  .video-player-status { padding: 16px; }
   .learning-grid { grid-template-columns: 1fr; padding: 0 12px 20px; }
   .learning-card { padding: 18px; }
   .card-heading { align-items: flex-start; }
